@@ -46,8 +46,87 @@ BBS.pages.settings = {
     return this.tabOrg(box);
   },
 
+  /* ลดขนาดโลโก้ก่อนแปลงเป็น Base64
+     Config เก็บเป็น JSON ในเซลล์เดียว (Google Sheets จำกัด 50,000 ตัวอักษร/เซลล์)
+     จึงต้องให้รูปหลังบีบอัดไม่เกิน 24 KB เพื่อเหลือพื้นที่ให้ค่าตั้งค่าอื่น
+     และทำให้ทั้ง request/response สั้นพอที่จะไม่ถูก proxy ตัดกลางทาง */
+  prepareLogo: function (file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || String(file.type || '').indexOf('image/') !== 0) {
+        reject(new Error('กรุณาเลือกไฟล์รูปภาพ'));
+        return;
+      }
+      if (file.size > 800 * 1024) {
+        reject(new Error('ไฟล์ใหญ่เกินไป กรุณาใช้ไฟล์ไม่เกิน 800 KB'));
+        return;
+      }
+
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('อ่านไฟล์ภาพไม่สำเร็จ')); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error('ไฟล์ภาพไม่ถูกต้องหรือเปิดไม่ได้')); };
+        img.onload = function () {
+          var maxSide = 360;
+          var scale = Math.min(1, maxSide / img.width, maxSide / img.height);
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          var ctx = canvas.getContext('2d');
+
+          var render = function (mime, quality) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (mime === 'image/jpeg') {
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL(mime, quality);
+          };
+          var byteSize = function (dataUrl) {
+            var b64 = String(dataUrl || '').split(',')[1] || '';
+            return Math.floor(b64.length * 3 / 4);
+          };
+
+          /* 24 KB -> Base64 ประมาณ 32 KB; รวม JSON แล้วยังต่ำกว่าเพดานเซลล์ 50,000 ตัวอักษร */
+          var LIMIT = 24 * 1024;
+          var mime = 'image/png';
+          var dataUrl = render(mime);
+          if (byteSize(dataUrl) > LIMIT) {
+            mime = 'image/jpeg';
+            dataUrl = render(mime, 0.76);
+          }
+          var guard = 0;
+          while (byteSize(dataUrl) > LIMIT && guard < 10 && (canvas.width > 64 || canvas.height > 64)) {
+            guard++;
+            canvas.width = Math.max(1, Math.round(canvas.width * 0.82));
+            canvas.height = Math.max(1, Math.round(canvas.height * 0.82));
+            mime = 'image/jpeg';
+            dataUrl = render(mime, Math.max(0.5, 0.74 - (guard * 0.025)));
+          }
+          if (byteSize(dataUrl) > LIMIT) {
+            reject(new Error('ไม่สามารถย่อโลโก้ให้อยู่ในขนาดที่ระบบรองรับได้ กรุณาใช้ภาพที่เรียบหรือเล็กลง'));
+            return;
+          }
+
+          var ext = mime === 'image/png' ? '.png' : '.jpg';
+          var baseName = String(file.name || 'logo').replace(/\.[^.]+$/, '');
+          resolve({
+            name: baseName + ext,
+            mimeType: mime,
+            dataBase64: String(dataUrl).split(',')[1],
+            size: byteSize(dataUrl)
+          });
+        };
+        img.src = String(reader.result || '');
+      };
+      reader.readAsDataURL(file);
+    });
+  },
+
   /* --- ข้อมูลหน่วยงาน + โลโก้ --- */
   tabOrg: function (box) {
+    var self = this;
     var c = this.cfg;
     var ro = BBS.isAdmin() ? '' : ' disabled';
     box.innerHTML = '<div class="card-bb"><div class="card-bb-head"><i class="bi bi-hospital"></i> ข้อมูลหน่วยงานและโลโก้</div>'
@@ -59,7 +138,7 @@ BBS.pages.settings = {
         + '<div class="btn-row justify-content-start mt-2">'
         + '<button class="btn-mini" id="btnLogo">อัปโหลด</button>'
         + '<button class="btn-mini danger" id="btnLogoDel">นำออก</button></div>'
-        + '<div class="form-text small">ไฟล์ภาพไม่เกิน 800 KB</div>'
+        + '<div class="form-text small">ไฟล์ภาพไม่เกิน 800 KB · ระบบจะย่อและบีบอัดให้อัตโนมัติ</div>'
         : '')
       + '</div>'
       + '<div class="col-md-9"><div class="row g-3">'
@@ -95,18 +174,25 @@ BBS.pages.settings = {
     document.getElementById('logoFile').addEventListener('change', function (e) {
       var file = e.target.files[0];
       if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function () {
-        BBS.apiMsg('config.logo', {
-          name: file.name, mimeType: file.type,
-          dataBase64: String(reader.result).split(',')[1]
-        }).then(function (r) {
-          BBS.toast(r.message, 'ok');
-          document.getElementById('logoBox').innerHTML = '<img src="' + r.data.logo_data + '">';
-          BBS.cfg.logo_data = r.data.logo_data;
-        }).catch(BBS.err);
-      };
-      reader.readAsDataURL(file);
+      var input = e.target;
+      var btn = document.getElementById('btnLogo');
+      var prepared = null;
+      btn.disabled = true;
+      self.prepareLogo(file).then(function (data) {
+        prepared = data;
+        return BBS.apiMsg('config.logo', data);
+      }).then(function (r) {
+          /* ไม่ให้ API ส่ง Base64 ก้อนเดิมกลับมาอีกครั้ง เพราะเสี่ยงถูก CORS/proxy ตัดคำตอบ
+             ใช้ข้อมูลที่เบราว์เซอร์เตรียมไว้แสดงตัวอย่างได้ทันที */
+          var logoData = 'data:' + prepared.mimeType + ';base64,' + prepared.dataBase64;
+          BBS.toast(r.message + (prepared ? ' (' + Math.ceil(prepared.size / 1024) + ' KB)' : ''), 'ok');
+          document.getElementById('logoBox').innerHTML = '<img src="' + logoData + '">';
+          BBS.cfg.logo_data = logoData;
+        }).catch(BBS.err).then(function () {
+          btn.disabled = false;
+          input.value = '';
+          prepared = null;
+        });
     });
     document.getElementById('btnLogoDel').addEventListener('click', function () {
       BBS.apiMsg('config.logoRemove').then(function (r) {
