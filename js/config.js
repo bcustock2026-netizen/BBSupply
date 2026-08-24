@@ -5,7 +5,7 @@ var CONFIG = {
 
   /* URL เว็บแอปของ Apps Script ที่ลงท้ายด้วย /exec
      ได้จากการรันฟังก์ชัน setupApi() ใน Apps Script */
-  API_URL: 'https://script.google.com/macros/s/AKfycbxhscX_5guEdb7PGGvJ0eGOdlwU-P-kObZmgKkcVFYyzZhE4AUhVXs24xYScfnrLCEx/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbwFAMkHfZx9ntV83tMURUicirV5y-W9_E7xBmqpoOXlI0LsMyhZBySy2vJEWskfLQT9/exec',
 
   APP_NAME: 'ระบบพัสดุ งานธนาคารเลือด',
   ORG_NAME: 'หน่วยรับบริจาคเลือด งานธนาคารเลือด โรงพยาบาลราชวิถี',
