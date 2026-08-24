@@ -60,6 +60,7 @@ BBS.app = {
 
     document.getElementById('loginAppName').textContent = CONFIG.APP_NAME;
     document.getElementById('loginOrgName').textContent = CONFIG.ORG_NAME;
+    BBS.app.applyBrand({ app_name: CONFIG.APP_NAME, org_name: CONFIG.ORG_NAME });
     BBS.ui.watch(document.getElementById('pageBody'));
 
     if (String(CONFIG.API_URL).indexOf('xxxxxxxx') > -1) {
@@ -73,6 +74,15 @@ BBS.app = {
     }
 
     BBS.auth.boot();
+    /* โลโก้และชื่อหน่วยงานไม่ใช่ข้อมูลลับ จึงโหลดได้ก่อน login
+       ทำให้หน้าเข้าสู่ระบบใช้ค่าที่ตั้งไว้จริง ไม่ต้องรอให้ผู้ใช้ผ่าน auth ก่อน */
+    BBS.api('config.public').then(function (c) {
+      BBS.publicCfg = c || {};
+      BBS.app.applyBrand(c);
+    }).catch(function () {
+      /* ถ้า API เวอร์ชันเก่ายังไม่มี route นี้ ให้ใช้ค่าที่จำไว้หลัง login ก่อนหน้า */
+      BBS.app.applyBrand(BBS.publicCfg || {});
+    });
 
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       navigator.serviceWorker.register('sw.js').catch(function () { });
@@ -85,6 +95,7 @@ BBS.app = {
       document.getElementById('appView').classList.remove('d-none');
 
       var c = BBS.cfg || {};
+      BBS.app.applyBrand(c);
       if (c.app_name) {
         document.getElementById('sideAppName').textContent = c.app_name;
         document.title = c.app_name;
@@ -99,6 +110,34 @@ BBS.app = {
       BBS.app.buildNav();
       BBS.app.go(location.hash || '#/dashboard');
     } catch (e) { BBS.err(e); }
+  },
+
+  applyBrand: function (c) {
+    c = c || {};
+    var appName = c.app_name || CONFIG.APP_NAME;
+    var orgName = c.org_name || CONFIG.ORG_NAME;
+    var hasServerLogo = Object.prototype.hasOwnProperty.call(c, 'logo_data');
+    var logo = hasServerLogo ? String(c.logo_data || '') : (BBS.store.get('bbs_logo_data') || '');
+    var setImage = function (imgId, iconId) {
+      var img = document.getElementById(imgId);
+      var icon = document.getElementById(iconId);
+      if (!img || !icon) return;
+      if (logo) {
+        img.src = logo;
+        img.style.display = 'block';
+        icon.style.display = 'none';
+      } else {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+        icon.style.display = 'block';
+      }
+    };
+    var loginName = document.getElementById('loginAppName');
+    var loginOrg = document.getElementById('loginOrgName');
+    if (loginName) loginName.textContent = appName;
+    if (loginOrg) loginOrg.textContent = orgName;
+    setImage('loginLogo', 'loginMarkIcon');
+    setImage('sideLogo', 'sideMarkIcon');
   },
 
   buildNav: function () {

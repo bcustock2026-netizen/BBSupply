@@ -23,6 +23,10 @@ BBS.auth = {
     BBS.api('auth.me').then(function (d) {
       BBS.user = d.user;
       BBS.cfg = d.config;
+      if (d.config && Object.prototype.hasOwnProperty.call(d.config, 'logo_data')) {
+        if (d.config.logo_data) BBS.store.set('bbs_logo_data', d.config.logo_data);
+        else BBS.store.del('bbs_logo_data');
+      }
       BBS.app.show();
     }).catch(function () { BBS.auth.forceLogin(); });
   },
@@ -41,6 +45,10 @@ BBS.auth = {
       BBS.token = r.data.token;
       BBS.user = r.data.user;
       BBS.cfg = r.data.config;
+      if (r.data.config && Object.prototype.hasOwnProperty.call(r.data.config, 'logo_data')) {
+        if (r.data.config.logo_data) BBS.store.set('bbs_logo_data', r.data.config.logo_data);
+        else BBS.store.del('bbs_logo_data');
+      }
       BBS.store.set('bbs_token', BBS.token);
       document.getElementById('lgPass').value = '';
       BBS.app.show();
@@ -66,6 +74,7 @@ BBS.auth = {
     BBS.token = null;
     document.getElementById('appView').classList.add('d-none');
     document.getElementById('loginView').style.display = 'flex';
+    BBS.app.applyBrand(BBS.publicCfg || BBS.cfg || {});
     document.body.classList.remove('side-open');
   }
 };

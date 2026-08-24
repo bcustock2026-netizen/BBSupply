@@ -30,7 +30,7 @@ BBS.lastError = null;
    บันทึกสำเร็จแล้วแต่การตอบกลับขาดหายระหว่างทาง
    config.logo/logoRemove เขียนทับค่าเดิมเสมอ ยิงซ้ำได้ไม่เกิดข้อมูลซ้ำ */
 BBS.isRetryableRoute = function (route) {
-  return /^(auth\.login|auth\.me|dash\.get|config\.(get|save|logo|logoRemove)|.*\.list|.*\.get|report\..+|issue\.ctx|count\.sheet|scan\.(resolve|search|history)|sys\.alertStatus)$/.test(String(route || ''));
+  return /^(auth\.login|auth\.me|dash\.get|config\.(public|get|save|logo|logoRemove)|.*\.list|.*\.get|report\..+|issue\.ctx|count\.sheet|scan\.(resolve|search|history)|sys\.alertStatus)$/.test(String(route || ''));
 };
 
 BBS.wait = function (ms) {

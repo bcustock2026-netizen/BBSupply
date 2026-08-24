@@ -188,6 +188,10 @@ BBS.pages.settings = {
           BBS.toast(r.message + (prepared ? ' (' + Math.ceil(prepared.size / 1024) + ' KB)' : ''), 'ok');
           document.getElementById('logoBox').innerHTML = '<img src="' + logoData + '">';
           BBS.cfg.logo_data = logoData;
+          BBS.publicCfg = BBS.publicCfg || {};
+          BBS.publicCfg.logo_data = logoData;
+          BBS.store.set('bbs_logo_data', logoData);
+          BBS.app.applyBrand(BBS.cfg);
         }).catch(BBS.err).then(function () {
           btn.disabled = false;
           input.value = '';
@@ -199,6 +203,10 @@ BBS.pages.settings = {
         BBS.toast(r.message, 'ok');
         document.getElementById('logoBox').innerHTML = '<i class="bi bi-image"></i>';
         BBS.cfg.logo_data = '';
+        BBS.publicCfg = BBS.publicCfg || {};
+        BBS.publicCfg.logo_data = '';
+        BBS.store.del('bbs_logo_data');
+        BBS.app.applyBrand(BBS.cfg);
       }).catch(BBS.err);
     });
   },
